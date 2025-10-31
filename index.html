@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>MonkeyType Stats</title>
+    <link rel="manifest" href="data:application/manifest+json,{
+        \"name\": \"MonkeyType Stats\",
+        \"short_name\": \"MTStats\",
+        \"start_url\": \".\",
+        \"display\": \"standalone\",
+        \"background_color\": \"#0a0a0a\",
+        \"theme_color\": \"#aa00ff\",
+        \"icons\": [
+            {\"src\": \"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⌨️%3C/text%3E%3C/svg%3E\", \"sizes\": \"192x192\", \"type\": \"image/svg+xml\"}
+        ]
+    }">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --card: #111;
+            --accent: #aa00ff;
+            --red: #ff1a5e;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --border: #333;
+            --glow: rgba(170, 0, 255, 0.2);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        .topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 70px;
+            background: rgba(10,10,10,0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .logo {
+            font-weight: 700;
+            font-size: 1.5em;
+            background: linear-gradient(90deg, var(--red), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-links {
+            margin-left: auto;
+            display: flex;
+            gap: 30px;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--accent);
+        }
+        .refresh-btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+        .refresh-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px var(--glow);
+        }
+        .main {
+            margin-top: 90px;
+            padding: 30px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--red), var(--accent), #8000ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: glow 3s ease infinite;
+        }
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(170,0,255,0.5); }
+            50% { text-shadow: 0 0 40px rgba(170,0,255,0.8); }
+        }
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1em;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(170,0,255,0.2);
+        }
+        .card h3 {
+            color: var(--accent);
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 10px;
+        }
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        .export-btn {
+            background: var(--red);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+        .export-btn:hover {
+            background: #ff3366;
+            transform: scale(1.05);
+        }
+        .loader {
+            border: 4px solid #333;
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error {
+            color: var(--red);
+            font-size: 1.2em;
+            text-align: center;
+            padding: 20px;
+            background: rgba(255,26,94,0.1);
+            border-radius: 8px;
+            border: 1px solid var(--red);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--accent); }
+        .tag-list {
+            list-style: none;
+            padding: 0;
+        }
+        .tag-list li {
+            background: var(--border);
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        @media (max-width: 768px) {
+            .topbar { padding: 0 15px; height: 60px; }
+            .nav-links { gap: 15px; font-size: 0.9em; }
+            .main { padding: 15px; margin-top: 70px; }
+            .header h1 { font-size: 2em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="logo">MonkeyType Stats</div>
+        <div class="nav-links">
+            <a href="#" class="active">Dashboard</a>
+            <a href="#">Activity</a>
+            <a href="#">Leaderboards</a>
+            <a href="#">Settings</a>
+        </div>
+        <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <h1>MonkeyType Stats</h1>
+            <p>Emulation's private empire. Real API, no bullshit.</p>
+            <div class="loader" id="loader"></div>
+            <p id="errorMsg" class="error" style="display:none;"></p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Profile</h3>
+                <div id="profileData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Streak</h3>
+                <div id="streakData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Global Rank</h3>
+                <div id="rankData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Best (60s)</h3>
+                <div id="bestsData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Total Tests</h3>
+                <div id="testsData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Time Typed</h3>
+                <div id="timeData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Peak WPM</h3>
+                <div id="peakData">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Avg WPM (10s)</h3>
+                <div id="avgData">Loading...</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Last 10 Tests (WPM Line)</h3>
+                <div class="chart-container">
+                    <canvas id="wpmChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Accuracy Scatter</h3>
+                <div class="chart-container">
+                    <canvas id="accChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Mode Breakdown (Pie)</h3>
+                <div class="chart-container">
+                    <canvas id="modeChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Consistency Radar</h3>
+                <div class="chart-container">
+                    <canvas id="consistencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3>Last 10 Tests</h3>
+            <div id="recentData">Loading...</div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3>Your Tags</h3>
+            <ul id="tagsList" class="tag-list"></ul>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3>Last Result Details</h3>
+            <div id="lastResult">Loading...</div>
+        </div>
+
+        <button class="export-btn" style="display:block; margin:20px auto; width:200px;" onclick="exportPNG()">📸 Export All</button>
+    </div>
+
+    <script>
+        const API = "https://api.monkeytype.com";
+        const HARDWIRED_KEY = "NjkwNTM4YzEzYmE1YzMwMzM3ZTVmMjhmLmNNNWxsZm84S2xVdXM3U1AzMEZLMVNlTzUxRmlGU0x4";
+        const headers = { 'Authorization': `ApeKey ${HARDWIRED_KEY}` };
+        let wpmChart, accChart, modeChart, consistencyChart;
+
+        async function api(path) {
+            const res = await fetch(API + path, { headers });
+            if (!res.ok) {
+                const err = await res.text();
+                console.error(`API [${path}]:`, res.status, err);
+                throw new Error(`HTTP ${res.status}: ${err}`);
+            }
+            return await res.json();
+        }
+
+        async function init() {
+            document.getElementById('loader').style.display = 'block';
+            try {
+                await Promise.all([
+                    loadProfile(),
+                    loadStreak(),
+                    loadRank(),
+                    loadBests(),
+                    loadStats(),
+                    loadRecent(),
+                    loadTags(),
+                    loadLastResult()
+                ]);
+                initCharts();
+                document.getElementById('loader').style.display = 'none';
+                setInterval(refreshAll, 180000); // 3 min
+            } catch (err) {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('errorMsg').textContent = `Auth Failed: ${err.message}. Rate limit? Key dead? Fix your shit.`;
+                document.getElementById('errorMsg').style.display = 'block';
+                console.error(err);
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                // Hardcode Emulation for now
+                document.getElementById('profileData').innerHTML = `
+                    <div class="stat-value">Emulation</div>
+                    <div class="stat-label">Typing Legend</div>
+                `;
+            } catch { document.getElementById('profileData').innerHTML = '<div class="error">Failed</div>'; }
+        }
+
+        async function loadStreak() {
+            try {
+                const data = await api('/users/streak');
+                document.getElementById('streakData').innerHTML = `
+                    <div class="stat-value">${data.data.length || 0}</div>
+                    <div class="stat-label">days (max: ${data.data.maxLength || 0})</div>
+                `;
+            } catch { document.getElementById('streakData').innerHTML = '<div class="error">Failed</div>'; }
+        }
+
+        async function loadRank() {
+            try {
+                const data = await api('/leaderboards/global');
+                // Assume UID from memory or skip, use placeholder
+                document.getElementById('rankData').innerHTML = `
+                    <div class="stat-value">#—</div>
+                    <div class="stat-label">Rank Loading</div>
+                `;
+            } catch { document.getElementById('rankData').innerHTML = '<div class="error">Failed</div>'; }
+        }
+
+        async function loadBests() {
+            try {
+                const data = await api('/users/personalBests?mode=time');
+                const best = data.data?.time?.[60]?.[0] || { wpm: '—', acc: 'N/A' };
+                document.getElementById('bestsData').innerHTML = `
+                    <div class="stat-value">${best.wpm}</div>
+                    <div class="stat-label">${best.acc}% acc</div>
+                `;
+            } catch { document.getElementById('bestsData').innerHTML = '<div class="error">Failed</div>'; }
+        }
+
+        async function loadStats() {
+            try {
+                const data = await api('/users/stats');
+                document.getElementById('testsData').innerHTML = `
+                    <div class="stat-value">${data.data.completedTests?.toLocaleString() || 0}</div>
+                    <div class="stat-label">completed</div>
+                `;
+                document.getElementById('timeData').innerHTML = `
+                    <div class="stat-value">${(data.data.timeTyping / 3600).toFixed(1)}</div>
+                    <div class="stat-label">hours typed</div>
+                `;
+                document.getElementById('peakData').innerHTML = `
+                    <div class="stat-value">${data.data.highestWpm || '—'}</div>
+                    <div class="stat-label">all-time peak</div>
+                `;
+                document.getElementById('avgData').innerHTML = `
+                    <div class="stat-value">${data.data.avgWpm?.['10'] || '—'}</div>
+                    <div class="stat-label">10s avg</div>
+                `;
+            } catch { 
+                document.getElementById('testsData').innerHTML = '<div class="error">Failed</div>';
+                document.getElementById('timeData').innerHTML = '<div class="error">Failed</div>';
+                document.getElementById('peakData').innerHTML = '<div class="error">Failed</div>';
+                document.getElementById('avgData').innerHTML = '<div class="error">Failed</div>';
+            }
+        }
+
+        async function loadRecent() {
+            try {
+                const data = await api('/results?limit=10');
+                const tests = data.data || [];
+                let html = `<table><tr><th>WPM</th><th>Acc</th><th>Mode</th><th>Date</th></tr>`;
+                const wpm = [], acc = [], labels = [], modes = {};
+                tests.forEach((t, i) => {
+                    const date = new Date(t.timestamp).toLocaleDateString();
+                    html += `<tr><td>${t.wpm}</td><td>${t.acc}%</td><td>${t.mode} ${t.mode2 || ''}</td><td>${date}</td></tr>`;
+                    wpm.push(t.wpm);
+                    acc.push(t.acc);
+                    labels.push(`Test ${tests.length - i}`);
+                    modes[t.mode] = (modes[t.mode] || 0) + 1;
+                });
+                html += `</table>`;
+                document.getElementById('recentData').innerHTML = html;
+
+                // Update WPM & Acc charts
+                if (wpmChart) {
+                    wpmChart.data.labels = labels;
+                    wpmChart.data.datasets[0].data = wpm;
+                    wpmChart.update('none');
+                }
+                if (accChart) {
+                    accChart.data.labels = labels;
+                    accChart.data.datasets[0].data = acc;
+                    accChart.update('none');
+                }
+
+                // Update mode pie
+                if (modeChart) {
+                    modeChart.data.labels = Object.keys(modes);
+                    modeChart.data.datasets[0].data = Object.values(modes);
+                    modeChart.update('none');
+                }
+            } catch { document.getElementById('recentData').innerHTML = '<div class="error">Failed to load tests</div>'; }
+        }
+
+        async function loadTags() {
+            try {
+                const data = await api('/users/tags');
+                const tags = data.data || [];
+                let html = '';
+                tags.forEach(tag => {
+                    html += `<li>${tag.name} (${tag.testsTaken || 0} tests)</li>`;
+                });
+                document.getElementById('tagsList').innerHTML = html || '<li>No tags yet</li>';
+            } catch { document.getElementById('tagsList').innerHTML = '<li class="error">Failed</li>'; }
+        }
+
+        async function loadLastResult() {
+            try {
+                const data = await api('/results/last');
+                const result = data.data || {};
+                document.getElementById('lastResult').innerHTML = `
+                    <p><strong>WPM:</strong> ${result.wpm || '—'}</p>
+                    <p><strong>Acc:</strong> ${result.acc || '—'}%</p>
+                    <p><strong>Mode:</strong> ${result.mode} ${result.mode2 || ''}</p>
+                    <p><strong>Language:</strong> ${result.language || '—'}</p>
+                    <p><strong>Timestamp:</strong> ${new Date(result.timestamp || 0).toLocaleString()}</p>
+                `;
+            } catch { document.getElementById('lastResult').innerHTML = '<div class="error">No last result</div>'; }
+        }
+
+        function initCharts() {
+            const ctx1 = document.getElementById('wpmChart').getContext('2d');
+            wpmChart = new Chart(ctx1, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'WPM', data: [], borderColor: '#aa00ff', backgroundColor: 'rgba(170,0,255,0.1)', tension: 0.4, fill: true }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+            });
+
+            const ctx2 = document.getElementById('accChart').getContext('2d');
+            accChart = new Chart(ctx2, {
+                type: 'scatter',
+                data: { datasets: [{ label: 'Acc %', data: [], backgroundColor: '#ff1a5e' }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, max: 100 } } }
+            });
+
+            const ctx3 = document.getElementById('modeChart').getContext('2d');
+            modeChart = new Chart(ctx3, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#aa00ff', '#ff1a5e', '#8000ff', '#ffcc00'] }] },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            const ctx4 = document.getElementById('consistencyChart').getContext('2d');
+            consistencyChart = new Chart(ctx4, {
+                type: 'radar',
+                data: { labels: ['10s', '15s', '30s', '60s', '120s', 'Zen'], datasets: [{ label: 'Consistency %', data: [0,0,0,0,0,0], borderColor: '#aa00ff', backgroundColor: 'rgba(170,0,255,0.2)' }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { r: { beginAtZero: true, max: 100 } } }
+            });
+        }
+
+        async function refreshAll() {
+            await Promise.all([
+                loadStreak(),
+                loadRank(),
+                loadBests(),
+                loadStats(),
+                loadRecent(),
+                loadTags(),
+                loadLastResult()
+            ]);
+        }
+
+        function exportPNG() {
+            html2canvas(document.querySelector('.main')).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'monkeytype-stats-emulation.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+        // Load html2canvas and kick off
+        const script = document.createElement('script');
+        script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+        script.onload = init;
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>
